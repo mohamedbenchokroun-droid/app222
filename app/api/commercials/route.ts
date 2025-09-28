@@ -1,23 +1,22 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createAdminClient } from "@/lib/supabase/server"
+import { createCommercial } from "@/lib/database"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createAdminClient()
+    const body = await request.json()
+    const { name } = body
 
-    const { name } = await request.json()
-
-    if (!name) {
+    if (!name || !name.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
     }
 
-    const { data, error } = await supabase.from("commercials").insert({ name }).select().single()
+    const commercial = await createCommercial(name.trim())
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!commercial) {
+      return NextResponse.json({ error: "Failed to create commercial" }, { status: 500 })
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json(commercial)
   } catch (error) {
     console.error("Error creating commercial:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

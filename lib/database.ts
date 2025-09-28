@@ -1,54 +1,88 @@
-import { createAdminClient } from "@/lib/supabase/server"
+// Mock database functions without Supabase authentication
 import type { Client, Commercial, Tag, Comment } from "@/lib/types"
 
+// Mock data storage (in a real app, this would be a database)
+const mockClients: Client[] = [
+  {
+    id: "1",
+    name: "Entreprise ABC",
+    amount: 15000,
+    original_amount: 15000,
+    status: "proposal",
+    commercial_id: "1",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    comments: [
+      {
+        id: "1",
+        client_id: "1",
+        text: "Premier contact établi, devis envoyé",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        created_by: "user1",
+        profile: { full_name: "Commercial" },
+      },
+    ],
+    tags: [],
+  },
+  {
+    id: "2",
+    name: "Société XYZ",
+    amount: 25000,
+    original_amount: 25000,
+    status: "negotiation",
+    commercial_id: "2",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    comments: [],
+    tags: [],
+  },
+]
+
+const mockCommercials: Commercial[] = [
+  {
+    id: "1",
+    name: "Jean Dupont",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "2",
+    name: "Marie Martin",
+    created_at: new Date().toISOString(),
+  },
+]
+
+const mockTags: Tag[] = [
+  {
+    id: "1",
+    name: "Priorité haute",
+    status: "proposal",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "2",
+    name: "Client fidèle",
+    status: "won",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+]
+
 export async function getClients(): Promise<Client[]> {
-  const supabase = createAdminClient()
-
-  const { data, error } = await supabase
-    .from("clients")
-    .select(`
-      *,
-      commercial:commercials(*),
-      comments:comments(*, profile:profiles(*)),
-      tags:client_tags(tag:tags(*))
-    `)
-    .order("created_at", { ascending: false })
-
-  if (error) {
-    console.error("Error fetching clients:", error)
-    return []
-  }
-
-  return data.map((client) => ({
+  // Add commercial data to clients
+  return mockClients.map((client) => ({
     ...client,
-    tags: client.tags?.map((ct: any) => ct.tag) || [],
+    commercial: mockCommercials.find((c) => c.id === client.commercial_id),
   }))
 }
 
 export async function getCommercials(): Promise<Commercial[]> {
-  const supabase = createAdminClient()
-
-  const { data, error } = await supabase.from("commercials").select("*").order("name")
-
-  if (error) {
-    console.error("Error fetching commercials:", error)
-    return []
-  }
-
-  return data
+  return mockCommercials
 }
 
 export async function getTags(): Promise<Tag[]> {
-  const supabase = createAdminClient()
-
-  const { data, error } = await supabase.from("tags").select("*").order("name")
-
-  if (error) {
-    console.error("Error fetching tags:", error)
-    return []
-  }
-
-  return data
+  return mockTags
 }
 
 export async function createClientFn(clientData: {
@@ -56,184 +90,157 @@ export async function createClientFn(clientData: {
   amount: number
   commercial_id: string
 }): Promise<Client | null> {
-  const supabase = createAdminClient()
-
-  const { data, error } = await supabase
-    .from("clients")
-    .insert({
-      ...clientData,
-      original_amount: clientData.amount,
-      status: "new",
-    })
-    .select(`
-      *,
-      commercial:commercials(*),
-      comments:comments(*, profile:profiles(*))
-    `)
-    .single()
-
-  if (error) {
-    console.error("Error creating client:", error)
-    return null
+  const newClient: Client = {
+    id: Date.now().toString(),
+    ...clientData,
+    original_amount: clientData.amount,
+    status: "new",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    comments: [
+      {
+        id: Date.now().toString(),
+        client_id: Date.now().toString(),
+        text: "Prise de contact / devis envoyé",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        created_by: "user1",
+        profile: { full_name: "Commercial" },
+      },
+    ],
+    tags: [],
   }
 
-  // Add initial comment
-  await supabase.from("comments").insert({
-    client_id: data.id,
-    text: "Prise de contact / devis envoyé",
-  })
-
-  return data
+  mockClients.unshift(newClient)
+  return {
+    ...newClient,
+    commercial: mockCommercials.find((c) => c.id === newClient.commercial_id),
+  }
 }
 
 export async function updateClientStatus(clientId: string, status: string): Promise<boolean> {
-  const supabase = createAdminClient()
+  const clientIndex = mockClients.findIndex((c) => c.id === clientId)
+  if (clientIndex === -1) return false
 
-  const { error } = await supabase
-    .from("clients")
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq("id", clientId)
-
-  if (error) {
-    console.error("Error updating client status:", error)
-    return false
+  mockClients[clientIndex] = {
+    ...mockClients[clientIndex],
+    status: status as Client["status"],
+    updated_at: new Date().toISOString(),
   }
-
   return true
 }
 
 export async function addComment(clientId: string, text: string): Promise<Comment | null> {
-  const supabase = createAdminClient()
-
-  const { data, error } = await supabase
-    .from("comments")
-    .insert({
-      client_id: clientId,
-      text,
-      created_by: null,
-    })
-    .select("*, profile:profiles(*)")
-    .single()
-
-  if (error) {
-    console.error("Error adding comment:", error)
-    return null
+  const newComment: Comment = {
+    id: Date.now().toString(),
+    client_id: clientId,
+    text,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    created_by: "user1",
+    profile: { full_name: "Commercial" },
   }
 
-  return data
+  const clientIndex = mockClients.findIndex((c) => c.id === clientId)
+  if (clientIndex !== -1) {
+    if (!mockClients[clientIndex].comments) {
+      mockClients[clientIndex].comments = []
+    }
+    mockClients[clientIndex].comments!.push(newComment)
+  }
+
+  return newComment
 }
 
 export async function updateComment(commentId: string, text: string): Promise<boolean> {
-  const supabase = createAdminClient()
-
-  const { error } = await supabase
-    .from("comments")
-    .update({ text, updated_at: new Date().toISOString() })
-    .eq("id", commentId)
-
-  if (error) {
-    console.error("Error updating comment:", error)
-    return false
+  for (const client of mockClients) {
+    if (client.comments) {
+      const commentIndex = client.comments.findIndex((c) => c.id === commentId)
+      if (commentIndex !== -1) {
+        client.comments[commentIndex] = {
+          ...client.comments[commentIndex],
+          text,
+          updated_at: new Date().toISOString(),
+        }
+        return true
+      }
+    }
   }
-
-  return true
+  return false
 }
 
 export async function createCommercial(name: string): Promise<Commercial | null> {
-  const supabase = createAdminClient()
-
-  const { data, error } = await supabase.from("commercials").insert({ name }).select().single()
-
-  if (error) {
-    console.error("Error creating commercial:", error)
-    return null
+  const newCommercial: Commercial = {
+    id: Date.now().toString(),
+    name,
+    created_at: new Date().toISOString(),
   }
 
-  return data
+  mockCommercials.push(newCommercial)
+  return newCommercial
 }
 
 export async function createTag(name: string, status: string): Promise<Tag | null> {
-  const supabase = createAdminClient()
-
-  const { data, error } = await supabase.from("tags").insert({ name, status }).select().single()
-
-  if (error) {
-    console.error("Error creating tag:", error)
-    return null
+  const newTag: Tag = {
+    id: Date.now().toString(),
+    name,
+    status: status as Tag["status"],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   }
 
-  return data
+  mockTags.push(newTag)
+  return newTag
 }
 
 export async function updateTag(tagId: string, name: string, status: string): Promise<boolean> {
-  const supabase = createAdminClient()
+  const tagIndex = mockTags.findIndex((t) => t.id === tagId)
+  if (tagIndex === -1) return false
 
-  const { error } = await supabase
-    .from("tags")
-    .update({ name, status, updated_at: new Date().toISOString() })
-    .eq("id", tagId)
-
-  if (error) {
-    console.error("Error updating tag:", error)
-    return false
+  mockTags[tagIndex] = {
+    ...mockTags[tagIndex],
+    name,
+    status: status as Tag["status"],
+    updated_at: new Date().toISOString(),
   }
-
   return true
 }
 
 export async function applyTagToClient(clientId: string, tagId: string): Promise<boolean> {
-  const supabase = createAdminClient()
+  const clientIndex = mockClients.findIndex((c) => c.id === clientId)
+  const tag = mockTags.find((t) => t.id === tagId)
 
-  // First, get the tag to know its associated status
-  const { data: tag } = await supabase.from("tags").select("status").eq("id", tagId).single()
+  if (clientIndex === -1 || !tag) return false
 
-  if (!tag) return false
+  // Add tag to client if not already present
+  if (!mockClients[clientIndex].tags) {
+    mockClients[clientIndex].tags = []
+  }
 
-  // Add the tag to the client
-  const { error: tagError } = await supabase.from("client_tags").insert({ client_id: clientId, tag_id: tagId })
-
-  if (tagError && tagError.code !== "23505") {
-    // Ignore duplicate key error
-    console.error("Error applying tag to client:", tagError)
-    return false
+  const hasTag = mockClients[clientIndex].tags!.some((t) => t.id === tagId)
+  if (!hasTag) {
+    mockClients[clientIndex].tags!.push(tag)
   }
 
   // Update client status based on tag
-  const { error: statusError } = await supabase
-    .from("clients")
-    .update({ status: tag.status, updated_at: new Date().toISOString() })
-    .eq("id", clientId)
-
-  if (statusError) {
-    console.error("Error updating client status:", statusError)
-    return false
-  }
+  mockClients[clientIndex].status = tag.status
+  mockClients[clientIndex].updated_at = new Date().toISOString()
 
   return true
 }
 
 export async function updateClientDiscount(clientId: string, discountPercentage: number): Promise<boolean> {
-  const supabase = createAdminClient()
+  const clientIndex = mockClients.findIndex((c) => c.id === clientId)
+  if (clientIndex === -1) return false
 
-  // Get current client data
-  const { data: client } = await supabase.from("clients").select("original_amount").eq("id", clientId).single()
+  const client = mockClients[clientIndex]
+  const discountedAmount = client.original_amount * (1 - discountPercentage / 100)
 
-  if (!client) return false
-
-  const newAmount = client.original_amount * (1 - discountPercentage / 100)
-
-  const { error } = await supabase
-    .from("clients")
-    .update({
-      amount: newAmount,
-      discount_percentage: discountPercentage,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", clientId)
-
-  if (error) {
-    console.error("Error updating client discount:", error)
-    return false
+  mockClients[clientIndex] = {
+    ...client,
+    amount: discountedAmount,
+    discount_percentage: discountPercentage,
+    updated_at: new Date().toISOString(),
   }
 
   return true
